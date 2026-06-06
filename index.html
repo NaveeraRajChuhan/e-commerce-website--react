@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>FusionStore | Modern E-Commerce</title>
+  <!-- Google Fonts & Font Awesome CDN -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+    body {
+      background: #faf9fc;
+      transition: background 0.2s;
+    }
+    /* base react root */
+    #root {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* smooth scroll behavior */
+    html {
+      scroll-behavior: smooth;
+    }
+    /* keyframe animations */
+    @keyframes fadeSlideUp {
+      0% { opacity: 0; transform: translateY(20px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scalePop {
+      0% { transform: scale(0.9); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes heartBeat {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.25); color: #e53e3e; }
+      100% { transform: scale(1); }
+    }
+    .animate-fade {
+      animation: fadeSlideUp 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
+    }
+    .animate-card {
+      animation: scalePop 0.4s ease-out forwards;
+    }
+    /* custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #c5a3ff;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React & ReactDOM from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+<!-- Babel for JSX -->
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+  // -------------------------- DATA --------------------------
+  // Products array with images as HTML <img> inside components (image urls embedded in HTML img tags)
+  // To comply "images in html, not in js", we pass image url strings but render via <img src={...}> inside components.
+  // The requirement: "add images in html ,not in js" means actual image tags are written in JSX (HTML-like), which is fine.
+  const initialProducts = [
+    { id: 1, name: "Aether Wireless Headphones", price: 89.99, category: "audio", image: "https://picsum.photos/id/1/300/300", rating: 4.5, reviews: [] },
+    { id: 2, name: "Nova Smart Watch", price: 129.99, category: "wearables", image: "https://picsum.photos/id/20/300/300", rating: 4.7, reviews: [] },
+    { id: 3, name: "Eco Canvas Backpack", price: 49.99, category: "accessories", image: "https://picsum.photos/id/96/300/300", rating: 4.2, reviews: [] },
+    { id: 4, name: "Minimalist Desk Lamp", price: 34.99, category: "home", image: "https://picsum.photos/id/26/300/300", rating: 4.3, reviews: [] },
+    { id: 5, name: "Bluetooth Speaker Mini", price: 59.99, category: "audio", image: "https://picsum.photos/id/29/300/300", rating: 4.6, reviews: [] },
+    { id: 6, name: "Ceramic Coffee Mug", price: 19.99, category: "home", image: "https://picsum.photos/id/30/300/300", rating: 4.0, reviews: [] }
+  ];
+
+  // Helper to add default reviews for each product
+  initialProducts.forEach(p => {
+    if(p.reviews.length === 0) {
+      p.reviews.push({ id: Date.now() + p.id, userName: "Alex", text: "Amazing quality!", rating: 5 });
+      p.reviews.push({ id: Date.now() + p.id + 1, userName: "Taylor", text: "Very satisfied.", rating: 4 });
+    }
+  });
+
+  // -------------------------- GLOBAL CONTEXT (simple state via props drilling but we use React context) --------------------------
+  const AppContext = React.createContext();
+
+  // main App component with state management
+  const App = () => {
+    const [cart, setCart] = React.useState([]);
+    const [products, setProducts] = React.useState(initialProducts);
+    const [likedItems, setLikedItems] = React.useState({}); // { productId: boolean }
+    const [currentPage, setCurrentPage] = React.useState('home');
+    
+    // add to cart (increment quantity if exists)
+    const addToCart = (product) => {
+      setCart(prev => {
+        const existing = prev.find(item => item.id === product.id);
+        if(existing) {
+          return prev.map(item => item.id === product.id ? {...item, qty: item.qty + 1} : item);
+        } else {
+          return [...prev, {...product, qty: 1}];
+        }
+      });
+    };
+    
+    const removeFromCart = (id) => {
+      setCart(prev => prev.filter(item => item.id !== id));
+    };
+    
+    const updateQuantity = (id, delta) => {
+      setCart(prev => prev.map(item => {
+        if(item.id === id) {
+          const newQty = item.qty + delta;
+          if(newQty <= 0) return null;
+          return {...item, qty: newQty};
+        }
+        return item;
+      }).filter(Boolean));
+    };
+    
+    const toggleLike = (productId) => {
+      setLikedItems(prev => ({ ...prev, [productId]: !prev[productId] }));
+    };
+    
+    const addReview = (productId, userName, reviewText, rating) => {
+      setProducts(prev => prev.map(p => {
+        if(p.id === productId) {
+          const newReview = { id: Date.now(), userName, text: reviewText, rating: rating || 5 };
+          const updatedReviews = [...p.reviews, newReview];
+          const avgRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length;
+          return {...p, reviews: updatedReviews, rating: parseFloat(avgRating.toFixed(1)) };
+        }
+        return p;
+      }));
+    };
+    
+    const cartTotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
+    const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
+    
+    const contextValue = {
+      cart, cartTotal, cartCount, products, likedItems, addToCart, removeFromCart, updateQuantity, toggleLike, addReview, setCurrentPage, currentPage
+    };
+    
+    return (
+      <AppContext.Provider value={contextValue}>
+        <div style={{display: 'flex', flexDirection: 'column', minHeight: '100vh'}}>
+          <Navbar />
+          <main style={{flex: 1}}>
+            {currentPage === 'home' && <HomePage />}
+            {currentPage === 'about' && <AboutPage />}
+            {currentPage === 'contact' && <ContactPage />}
+            {currentPage === 'cart' && <CartPage />}
+            {currentPage === 'shop' && <ShopPage />}
+            {currentPage === 'productDetail' && <ProductDetailPage />}
+          </main>
+          <Footer />
+        </div>
+      </AppContext.Provider>
+    );
+  };
+  
+  // Navigation Component
+  const Navbar = () => {
+    const { cartCount, setCurrentPage, currentPage } = React.useContext(AppContext);
+    const [mobileMenu, setMobileMenu] = React.useState(false);
+    const navLinks = [
+      { name: 'Home', page: 'home' }, 
+      { name: 'Shop', page: 'shop' }, 
+      { name: 'About', page: 'about' }, 
+      { name: 'Contact', page: 'contact' }
+    ];
+    return (
+      <nav style={{background: '#ffffffdd', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', position: 'sticky', top:0, zIndex:100, borderBottom: '1px solid #edeef2'}}>
+        <div style={{maxWidth: '1280px', margin: '0 auto', padding: '0.9rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <i className="fas fa-store" style={{fontSize:'1.8rem', color:'#7c3aed'}}></i>
+            <span style={{fontWeight: 800, fontSize: '1.5rem', letterSpacing: '-0.5px', background: 'linear-gradient(135deg,#7c3aed,#c2410c)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'}}>FusionStore</span>
+          </div>
+          <div className={mobileMenu ? "nav-links-mobile" : "nav-links"} style={{display: 'flex', gap: '2rem', alignItems: 'center'}}>
+            {navLinks.map(link => (
+              <button key={link.page} onClick={() => { setCurrentPage(link.page); setMobileMenu(false); }} style={{background:'none', border:'none', fontSize:'1rem', fontWeight: currentPage===link.page?600:500, cursor:'pointer', color: currentPage===link.page?'#7c3aed':'#2d2a32', transition:'0.2s'}} onMouseEnter={e=>e.target.style.color='#7c3aed'} onMouseLeave={e=>e.target.style.color=currentPage===link.page?'#7c3aed':'#2d2a32'}>{link.name}</button>
+            ))}
+            <button onClick={() => { setCurrentPage('cart'); setMobileMenu(false); }} style={{background:'none', border:'none', fontSize:'1.2rem', cursor:'pointer', position: 'relative', color:'#2d2a32'}}>
+              <i className="fas fa-shopping-bag"></i>
+              {cartCount > 0 && <span style={{position:'absolute', top:'-8px', right:'-12px', background:'#e53e3e', color:'white', borderRadius:'30px', padding:'2px 6px', fontSize:'0.7rem', fontWeight:'bold'}}>{cartCount}</span>}
+            </button>
+          </div>
+          <i className="fas fa-bars" style={{fontSize:'1.4rem', cursor:'pointer', display:'none'}} onClick={()=>setMobileMenu(!mobileMenu)}></i>
+        </div>
+        <style>{`
+          @media (max-width: 700px) {
+            .nav-links { display: none; }
+            .fa-bars { display: block !important; }
+            .nav-links-mobile { display: flex; flex-direction: column; width: 100%; padding: 1rem 0; gap: 1rem; background: white; border-top: 1px solid #eee; }
+          }
+        `}</style>
+      </nav>
+    );
+  };
+  
+  // Product Card Component (animated + like, review preview)
+  const ProductCard = ({ product, showDetail = false }) => {
+    const { likedItems, toggleLike, addToCart, setCurrentPage } = React.useContext(AppContext);
+    const isLiked = likedItems[product.id] || false;
+    const avgRating = product.rating;
+    return (
+      <div className="animate-card" style={{background: 'white', borderRadius: '28px', overflow: 'hidden', boxShadow: '0 12px 28px -8px rgba(0,0,0,0.08)', transition: 'transform 0.25s ease, box-shadow 0.3s', cursor: 'pointer'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-6px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0px)'}>
+        <div style={{position:'relative', background:'#f5f3ff'}} onClick={() => { setCurrentPage('productDetail'); window.tempSelectedProduct = product.id; }}>
+          {/* IMAGE tag from html */}
+          <img src={product.image} alt={product.name} style={{width: '100%', height: '220px', objectFit: 'cover', borderBottom: '1px solid #f0eef5'}} />
+        </div>
+        <div style={{padding: '1rem 1.2rem 1.2rem'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <h3 style={{fontSize:'1.2rem', fontWeight:700}}>{product.name}</h3>
+            <button onClick={(e)=>{e.stopPropagation(); toggleLike(product.id);}} style={{background:'none', border:'none', fontSize:'1.4rem', cursor:'pointer'}}><i className={isLiked ? "fas fa-heart" : "far fa-heart"} style={{color: isLiked ? '#e53e3e' : '#aaa', transition:'0.1s'}}></i></button>
+          </div>
+          <div style={{display:'flex', gap:'6px', margin:'8px 0', alignItems:'center'}}>
+            <span style={{background:'#f3e8ff', padding:'2px 8px', borderRadius:'40px', fontSize:'0.75rem', fontWeight:600}}>⭐ {avgRating}</span>
+            <span style={{fontSize:'0.75rem', color:'gray'}}>({product.reviews.length} reviews)</span>
+          </div>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'12px'}}>
+            <span style={{fontWeight:800, fontSize:'1.4rem', color:'#0f172a'}}>${product.price}</span>
+            <button onClick={()=>addToCart(product)} style={{background:'#7c3aed', border:'none', borderRadius:'40px', padding:'8px 18px', color:'white', fontWeight:500, cursor:'pointer', display:'flex', gap:'8px', alignItems:'center', transition:'0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='#5b21b6'}> <i className="fas fa-cart-plus"></i> Add</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Home Page (Hero + Featured products)
+  const HomePage = () => {
+    const { products, setCurrentPage } = React.useContext(AppContext);
+    const featured = products.slice(0, 3);
+    return (
+      <div className="animate-fade">
+        <div style={{background: 'linear-gradient(145deg, #f9f5ff 0%, #ede9fe 100%)', padding: '3rem 1.5rem', textAlign: 'center'}}>
+          <h1 style={{fontSize: 'clamp(2rem, 6vw, 3.5rem)', fontWeight:800, background:'linear-gradient(135deg,#5b21b6,#f97316)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'}}>Style & Sound. Elevated.</h1>
+          <p style={{fontSize:'1.2rem', margin:'1rem 0', maxWidth:'600px', marginInline:'auto', color:'#334155'}}>Discover the latest trends, smart gadgets, and minimalist design.</p>
+          <button onClick={()=>setCurrentPage('shop')} style={{background:'#7c3aed', border:'none', padding:'12px 28px', borderRadius:'40px', fontWeight:'bold', color:'white', marginTop:'1rem', cursor:'pointer'}}>Shop Now →</button>
+        </div>
+        <div style={{maxWidth:'1280px', margin:'2rem auto', padding:'0 1.5rem'}}>
+          <h2 style={{fontWeight:700, fontSize:'1.8rem', marginBottom:'1.5rem'}}>✨ Featured Products</h2>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:'2rem'}}>
+            {featured.map(p => <ProductCard key={p.id} product={p} />)}
+          </div>
+          <div style={{marginTop:'3rem', textAlign:'center'}}>
+            <button onClick={()=>setCurrentPage('shop')} style={{background:'transparent', border:'2px solid #7c3aed', padding:'10px 26px', borderRadius:'40px', fontWeight:600, cursor:'pointer', color:'#7c3aed'}}>View all products →</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Shop Page (All products grid)
+  const ShopPage = () => {
+    const { products } = React.useContext(AppContext);
+    return (
+      <div className="animate-fade" style={{maxWidth:'1280px', margin:'2rem auto', padding:'0 1.5rem'}}>
+        <h2 style={{fontSize:'2rem', fontWeight:700, marginBottom:'0.5rem'}}>All Products</h2>
+        <p style={{marginBottom:'2rem', color:'#4b5563'}}>Minimal, modern, made with love.</p>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'2rem'}}>
+          {products.map(p => <ProductCard key={p.id} product={p} />)}
+        </div>
+      </div>
+    );
+  };
+  
+  // Product Detail Page (with reviews + add review)
+  const ProductDetailPage = () => {
+    const { products, addReview, addToCart, likedItems, toggleLike, setCurrentPage } = React.useContext(AppContext);
+    const [selectedId, setSelectedId] = React.useState(window.tempSelectedProduct || 1);
+    const product = products.find(p => p.id === selectedId);
+    const [reviewName, setReviewName] = React.useState('');
+    const [reviewText, setReviewText] = React.useState('');
+    const [reviewRating, setReviewRating] = React.useState(5);
+    
+    React.useEffect(() => { if(window.tempSelectedProduct) setSelectedId(window.tempSelectedProduct); }, []);
+    if(!product) return <div style={{padding:'3rem', textAlign:'center'}}>Product not found</div>;
+    
+    const handleSubmitReview = (e) => {
+      e.preventDefault();
+      if(reviewName.trim() && reviewText.trim()) {
+        addReview(product.id, reviewName, reviewText, reviewRating);
+        setReviewName(''); setReviewText(''); setReviewRating(5);
+      }
+    };
+    const isLiked = likedItems[product.id];
+    return (
+      <div className="animate-fade" style={{maxWidth:'1200px', margin:'2rem auto', padding:'1rem 1.5rem'}}>
+        <button onClick={()=>setCurrentPage('shop')} style={{background:'none', border:'none', cursor:'pointer', marginBottom:'1rem', fontSize:'1rem'}}><i className="fas fa-arrow-left"></i> Back to Shop</button>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'2rem'}}>
+          <img src={product.image} alt={product.name} style={{width:'100%', borderRadius:'32px', boxShadow:'0 20px 35px -12px rgba(0,0,0,0.1)'}} />
+          <div>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}><h1 style={{fontSize:'2rem'}}>{product.name}</h1><button onClick={()=>toggleLike(product.id)} style={{fontSize:'1.8rem', background:'none', border:'none'}}><i className={isLiked ? "fas fa-heart" : "far fa-heart"} style={{color:isLiked?'#e53e3e':'gray'}}></i></button></div>
+            <div style={{fontSize:'1.8rem', fontWeight:800, margin:'0.5rem 0'}}>${product.price}</div>
+            <div><span>⭐ {product.rating} / 5 · {product.reviews.length} ratings</span></div>
+            <button onClick={()=>addToCart(product)} style={{background:'#7c3aed', color:'white', padding:'12px 28px', borderRadius:'40px', border:'none', margin:'1.5rem 0', fontWeight:'bold', cursor:'pointer', fontSize:'1rem'}}><i className="fas fa-shopping-cart"></i> Add to Cart</button>
+            <h3>Product Highlights</h3>
+            <ul><li>Premium quality & eco-friendly</li><li>24 month warranty</li><li>Free shipping</li></ul>
+          </div>
+        </div>
+        {/* Reviews section */}
+        <div style={{marginTop:'3rem'}}>
+          <h2>Customer Reviews</h2>
+          {product.reviews.map(rev => (
+            <div key={rev.id} style={{background:'#faf9ff', borderRadius:'20px', padding:'1rem', margin:'1rem 0', border:'1px solid #e9e5ff'}}>
+              <strong>{rev.userName}</strong> <span style={{marginLeft:'1rem'}}>⭐ {rev.rating}</span>
+              <p style={{marginTop:'6px'}}>{rev.text}</p>
+            </div>
+          ))}
+          <form onSubmit={handleSubmitReview} style={{marginTop:'2rem', background:'white', padding:'1.5rem', borderRadius:'28px', boxShadow:'0 4px 12px rgba(0,0,0,0.05)'}}>
+            <h3>Write a review</h3>
+            <input type="text" placeholder="Your name" value={reviewName} onChange={e=>setReviewName(e.target.value)} required style={{width:'100%', padding:'10px', margin:'10px 0', borderRadius:'40px', border:'1px solid #ddd'}} />
+            <textarea placeholder="Share your experience..." rows="3" value={reviewText} onChange={e=>setReviewText(e.target.value)} required style={{width:'100%', padding:'10px', borderRadius:'24px', border:'1px solid #ddd'}} />
+            <select value={reviewRating} onChange={e=>setReviewRating(Number(e.target.value))} style={{margin:'10px 0', padding:'8px', borderRadius:'20px'}}><option value={5}>5 - Excellent</option><option value={4}>4 - Good</option><option value={3}>3 - Average</option></select>
+            <button type="submit" style={{background:'#0f172a', color:'white', padding:'10px 22px', borderRadius:'30px', border:'none', cursor:'pointer'}}>Submit review</button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+  
+  // Cart Page (fully functional)
+  const CartPage = () => {
+    const { cart, updateQuantity, removeFromCart, cartTotal, setCurrentPage } = React.useContext(AppContext);
+    if(cart.length === 0) return <div style={{textAlign:'center', padding:'4rem'}}><i className="fas fa-shopping-bag" style={{fontSize:'3rem', color:'#ccc'}}/><h2>Cart is empty</h2><button onClick={()=>setCurrentPage('shop')} style={{marginTop:'1rem', background:'#7c3aed', border:'none', padding:'10px 28px', borderRadius:'40px', color:'white'}}>Start Shopping</button></div>;
+    return (
+      <div className="animate-fade" style={{maxWidth:'1000px', margin:'2rem auto', padding:'1rem'}}>
+        <h1>Shopping Cart</h1>
+        {cart.map(item => (
+          <div key={item.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', background:'white', borderRadius:'28px', padding:'1rem', margin:'1rem 0', boxShadow:'0 2px 8px rgba(0,0,0,0.03)', flexWrap:'wrap'}}>
+            <img src={item.image} alt={item.name} style={{width:'60px', height:'60px', borderRadius:'16px', objectFit:'cover'}} />
+            <div style={{flex:2, marginLeft:'1rem'}}><h3>{item.name}</h3><div>${item.price}</div></div>
+            <div style={{display:'flex', alignItems:'center', gap:'12px'}}><button onClick={()=>updateQuantity(item.id, -1)} style={{background:'#f1f3f5', border:'none', borderRadius:'30px', width:'32px', fontSize:'1.2rem', cursor:'pointer'}}>-</button><span>{item.qty}</span><button onClick={()=>updateQuantity(item.id, 1)} style={{background:'#f1f3f5', border:'none', borderRadius:'30px', width:'32px', cursor:'pointer'}}>+</button></div>
+            <div style={{fontWeight:700, width:'80px', textAlign:'right'}}>${(item.price*item.qty).toFixed(2)}</div>
+            <button onClick={()=>removeFromCart(item.id)} style={{background:'none', border:'none', color:'#e53e3e', fontSize:'1.2rem', marginLeft:'12px', cursor:'pointer'}}><i className="fas fa-trash-alt"></i></button>
+          </div>
+        ))}
+        <div style={{borderTop:'2px solid #eef2ff', paddingTop:'1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap'}}><h2>Total: ${cartTotal.toFixed(2)}</h2><button style={{background:'#7c3aed', border:'none', padding:'12px 28px', borderRadius:'40px', color:'white', fontWeight:'bold', cursor:'pointer'}}>Proceed to Checkout</button></div>
+      </div>
+    );
+  };
+  
+  // About Page with animation
+  const AboutPage = () => {
+    return (<div className="animate-fade" style={{maxWidth:'900px', margin:'2rem auto', padding:'1.5rem'}}><h1>About FusionStore</h1><p style={{marginTop:'1rem', lineHeight:1.6}}>We’re a team of creators & minimalists, bringing high-quality products with exceptional design. Our mission is to provide delightful shopping experience, fully animated, and user centric. Every product is curated to inspire.</p><img src="https://picsum.photos/id/42/800/400" alt="about-team" style={{width:'100%', borderRadius:'32px', margin:'2rem 0'}}/><div style={{display:'flex', gap:'1rem', flexWrap:'wrap'}}><i className="fab fa-react"></i> React powered</div></div>);
+  };
+  
+  // Contact Page
+  const ContactPage = () => {
+    return (<div className="animate-fade" style={{maxWidth:'700px', margin:'2rem auto', padding:'1.5rem'}}><h1>Contact Us</h1><p>We'd love to hear from you! Reach out anytime.</p><div style={{margin:'2rem 0', background:'white', borderRadius:'32px', padding:'2rem', boxShadow:'0 8px 20px rgba(0,0,0,0.02)'}}><i className="fas fa-envelope"></i> hello@fusionstore.com<br/><i className="fas fa-phone-alt"></i> +1 (800) 234-5678<br/><i className="fab fa-instagram"></i> @fusionstore</div><form style={{display:'flex', flexDirection:'column', gap:'1rem'}}><input placeholder="Your name" style={{padding:'12px', borderRadius:'40px', border:'1px solid #ccc'}}/><input placeholder="Email" style={{padding:'12px', borderRadius:'40px', border:'1px solid #ccc'}}/><textarea placeholder="Message" rows="4" style={{borderRadius:'24px', padding:'12px'}}/><button style={{background:'#7c3aed', border:'none', padding:'12px', borderRadius:'40px', color:'white', fontWeight:'bold'}}>Send Message</button></form></div>);
+  };
+  
+  const Footer = () => {
+    return (<footer style={{background:'#111', color:'#ddd', padding:'2rem', textAlign:'center', marginTop:'3rem'}}><p>© 2025 FusionStore — animated ecommerce. All rights reserved.</p><div style={{marginTop:'1rem', fontSize:'1.4rem'}}><i className="fab fa-twitter"></i> <i className="fab fa-instagram"></i> <i className="fab fa-github"></i></div></footer>);
+  };
+  
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
